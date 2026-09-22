@@ -4,7 +4,7 @@ CREATE TABLE users (
     registration_stage VARCHAR(20) NOT NULL DEFAULT 'new',
     name VARCHAR(50),
     age INT,
-    gender CHAR(1),
+    gender VARCHAR(10),
     county VARCHAR(50),
     town VARCHAR(50),
     level_of_education VARCHAR(50),

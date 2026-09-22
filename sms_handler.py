@@ -150,5 +150,5 @@ def handle_myself(phone_number):
 
 
 if __name__ == "__main__":
-    reply = handle_message("0712345678", "MYSELF")
+    reply = handle_message("0798765432", "START#Jane Smith#24#Female#Nairobi#Kasarani")
     print(reply)

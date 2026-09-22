@@ -17,6 +17,9 @@ def handle_message(phone_number, message):
     if message.upper().startswith("DETAILS#"):
         return handle_details(phone_number, message)
 
+    if message.upper() == "MYSELF":
+        return handle_myself(phone_number)
+
     return "Sorry, we couldn't understand that command."
 
 
@@ -118,9 +121,34 @@ def handle_details(phone_number, message):
     )
 
 
-if __name__ == "__main__":
-    reply2 = handle_message(
-        "0712345678",
-        "DETAILS#Degree#Teacher#Single#Christian#Kikuyu#0712345678"
+def handle_myself(phone_number):
+    user, conn = get_user(phone_number)
+    if conn is None:
+        return "Sorry, something went wrong. Please try again later."
+
+    if not user:
+        conn.close()
+        return (
+            "You are not registered yet. Text START#Name#Age#Gender#"
+            "County#Town to begin."
+        )
+
+    conn.close()
+
+    return (
+        f"Name: {user['name']}\n"
+        f"Age: {user['age']}\n"
+        f"Gender: {user['gender']}\n"
+        f"County: {user['county']}\n"
+        f"Town: {user['town']}\n"
+        f"Education: {user['level_of_education']}\n"
+        f"Profession: {user['profession']}\n"
+        f"Marital Status: {user['marital_status']}\n"
+        f"Religion: {user['religion']}\n"
+        f"Ethnicity: {user['ethnicity']}"
     )
-    print(reply2)
+
+
+if __name__ == "__main__":
+    reply = handle_message("0712345678", "MYSELF")
+    print(reply)

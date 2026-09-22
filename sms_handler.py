@@ -14,7 +14,22 @@ def handle_message(phone_number, message):
     if message.upper().startswith("START#"):
         return handle_start(phone_number, message)
 
+    if message.upper().startswith("DETAILS#"):
+        return handle_details(phone_number, message)
+
     return "Sorry, we couldn't understand that command."
+
+
+def get_user(phone_number):
+    conn = get_connection()
+    if conn is None:
+        return None, None
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT * FROM users WHERE phone_number = %s", (phone_number,)
+    )
+    user = cursor.fetchone()
+    return user, conn
 
 
 def handle_start(phone_number, message):
@@ -28,22 +43,15 @@ def handle_start(phone_number, message):
 
     _, name, age, gender, county, town = parts
 
-    conn = get_connection()
+    user, conn = get_user(phone_number)
     if conn is None:
         return "Sorry, something went wrong. Please try again later."
 
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT id FROM users WHERE phone_number = %s", (phone_number,)
-    )
-    existing = cursor.fetchone()
-
-    if existing:
-        cursor.close()
+    if user:
         conn.close()
         return "You are already registered with PENZI."
 
+    cursor = conn.cursor()
     cursor.execute(
         """
         INSERT INTO users
@@ -63,8 +71,56 @@ def handle_start(phone_number, message):
     )
 
 
-if __name__ == "__main__":
-    reply = handle_message(
-        "0712345678", "START#John Doe#26#Male#Nairobi#Kasarani"
+def handle_details(phone_number, message):
+    parts = message.split("#")
+
+    if len(parts) != 7:
+        return (
+            "Invalid format. Please use: DETAILS#Level of Education#"
+            "Profession#Marital Status#Religion#Ethnicity#Phone Number"
+        )
+
+    _, education, profession, marital_status, religion, ethnicity, phone_in_msg = parts
+
+    user, conn = get_user(phone_number)
+    if conn is None:
+        return "Sorry, something went wrong. Please try again later."
+
+    if not user:
+        conn.close()
+        return (
+            "You need to register first. Text START#Name#Age#Gender#"
+            "County#Town to begin."
+        )
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE users
+        SET level_of_education = %s,
+            profession = %s,
+            marital_status = %s,
+            religion = %s,
+            ethnicity = %s,
+            registration_stage = %s
+        WHERE phone_number = %s
+        """,
+        (education, profession, marital_status, religion, ethnicity,
+         "complete", phone_number)
     )
-    print(reply)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return (
+        "Your details are saved! You can now text MYSELF to see your "
+        "profile, or MATCH#Age#County#Town to find a match."
+    )
+
+
+if __name__ == "__main__":
+    reply2 = handle_message(
+        "0712345678",
+        "DETAILS#Degree#Teacher#Single#Christian#Kikuyu#0712345678"
+    )
+    print(reply2)

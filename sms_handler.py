@@ -20,6 +20,9 @@ def handle_message(phone_number, message):
     if message.upper() == "MYSELF":
         return handle_myself(phone_number)
 
+    if message.upper().startswith("MATCH#"):
+        return handle_match(phone_number, message)
+
     return "Sorry, we couldn't understand that command."
 
 
@@ -149,6 +152,44 @@ def handle_myself(phone_number):
     )
 
 
+def handle_match(phone_number, message):
+    parts = message.split("#")
+
+    if len(parts) != 4:
+        return "Invalid format. Please use: MATCH#Age#County#Town"
+
+    _, age, county, town = parts
+
+    requester, conn = get_user(phone_number)
+    if conn is None:
+        return "Sorry, something went wrong. Please try again later."
+
+    if not requester:
+        conn.close()
+        return (
+            "You need to register first. Text START#Name#Age#Gender#"
+            "County#Town to begin."
+        )
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT name, age, phone_number FROM users
+        WHERE age = %s AND county = %s AND town = %s
+        AND phone_number != %s
+        """,
+        (age, county, town, phone_number)
+    )
+    matches = cursor.fetchall()
+    conn.close()
+
+    if not matches:
+        return "No matches found for that age, county, and town."
+
+    lines = [f"{m['name']}, {m['age']} - {m['phone_number']}" for m in matches]
+    return "Matches found:\n" + "\n".join(lines)
+
+
 if __name__ == "__main__":
-    reply = handle_message("0798765432", "START#Jane Smith#24#Female#Nairobi#Kasarani")
+    reply = handle_message("0712345678", "MATCH#24#Nairobi#Kasarani")
     print(reply)

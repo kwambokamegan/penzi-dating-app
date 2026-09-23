@@ -23,6 +23,12 @@ def handle_message(phone_number, message):
     if message.upper().startswith("MATCH#"):
         return handle_match(phone_number, message)
 
+    if message.upper().startswith("DESCRIBE#"):
+        return handle_describe(phone_number, message)
+
+    if message.upper().startswith("YES#"):
+        return handle_yes(phone_number, message)
+
     return "Sorry, we couldn't understand that command."
 
 
@@ -193,3 +199,71 @@ def handle_match(phone_number, message):
 if __name__ == "__main__":
     reply = handle_message("0712345678", "MATCH#24#Nairobi#Kasarani")
     print(reply)
+
+
+def handle_describe(phone_number, message):
+    parts = message.split("#", 1)
+
+    if len(parts) != 2 or not parts[1].strip():
+        return "Invalid format. Please use: DESCRIBE#Your description here"
+
+    description = parts[1].strip()
+
+    user, conn = get_user(phone_number)
+    if conn is None:
+        return "Sorry, something went wrong. Please try again later."
+
+    if not user:
+        conn.close()
+        return (
+            "You need to register first. Text START#Name#Age#Gender#"
+            "County#Town to begin."
+        )
+
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET self_description = %s WHERE phone_number = %s",
+        (description, phone_number)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return "Your description has been saved!"
+
+
+def handle_yes(phone_number, message):
+    parts = message.split("#")
+
+    if len(parts) != 2 or not parts[1].strip():
+        return "Invalid format. Please use: YES#PhoneNumber"
+
+    requested_phone = parts[1].strip()
+
+    requester, conn = get_user(phone_number)
+    if conn is None:
+        return "Sorry, something went wrong. Please try again later."
+
+    if not requester:
+        conn.close()
+        return (
+            "You need to register first. Text START#Name#Age#Gender#"
+            "County#Town to begin."
+        )
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO match_requests (requester_phone, requested_phone, status)
+        VALUES (%s, %s, %s)
+        """,
+        (phone_number, requested_phone, "pending")
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return (
+        f"Your request to connect with {requested_phone} has been sent! "
+        "We'll notify you once approved."
+    )

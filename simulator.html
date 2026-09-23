@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PENZI Dating App Simulator</title>
+
+    <style>
+        :root {
+            --plum: #8E1B4F;
+            --cream: #FFF7F0;
+            --beige: #EAD8D0;
+            --brown: #351A25;
+            --white: #FFFFFF;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--cream);
+            font-family: Arial, sans-serif;
+            color: var(--brown);
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .phone {
+            width: 380px;
+            max-width: 95%;
+
+            background: var(--white);
+            border-radius: 28px;
+            overflow: hidden;
+
+            box-shadow: 0 10px 30px rgba(53, 26, 37, 0.2);
+        }
+
+        /* HEADER */
+        .phone-header {
+            background: var(--plum);
+            color: white;
+
+            text-align: center;
+            padding: 18px;
+        }
+
+        .phone-header h1 {
+            margin: 0;
+            font-size: 23px;
+        }
+
+        .phone-header p {
+            margin: 5px 0 0;
+            font-size: 13px;
+        }
+
+        /* PHONE NUMBER */
+        .phone-number-bar {
+            display: flex;
+            padding: 12px;
+            background: var(--beige);
+        }
+
+        .phone-number-bar input {
+            width: 100%;
+            padding: 10px;
+
+            border: none;
+            border-radius: 10px;
+
+            outline: none;
+
+            font-size: 13px;
+
+            /* Center the phone number */
+            text-align: center;
+        }
+
+        /* MESSAGES */
+        .messages {
+            height: 460px;
+
+            padding: 15px;
+
+            background: var(--cream);
+
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* SMS BUBBLES */
+        .bubble {
+            max-width: 85%;
+            min-width: 0;
+
+            padding: 10px 13px;
+            margin-bottom: 10px;
+
+            border-radius: 16px;
+
+            font-size: 13px;
+            line-height: 1.4;
+
+            white-space: pre-wrap;
+
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* RECEIVED SMS */
+        .received {
+            background: var(--white);
+
+            border: 1px solid var(--beige);
+
+            margin-right: auto;
+
+            border-bottom-left-radius: 5px;
+        }
+
+        /* SENT SMS */
+        .sent {
+            background: var(--plum);
+            color: white;
+
+            margin-left: auto;
+
+            border-bottom-right-radius: 5px;
+        }
+
+        /* INSTRUCTIONS */
+        .hint {
+            margin: 0;
+
+            padding: 10px 15px 12px;
+
+            text-align: center;
+
+            font-size: 11px;
+
+            color: #7a5a66;
+
+            background: var(--cream);
+        }
+
+        /* MESSAGE INPUT */
+        .input-bar {
+            display: flex;
+
+            gap: 8px;
+
+            padding: 12px;
+
+            background: var(--white);
+
+            border-top: 1px solid var(--beige);
+        }
+
+        .input-bar input {
+            flex: 1;
+
+            min-width: 0;
+
+            padding: 11px;
+
+            border: 1px solid var(--beige);
+
+            border-radius: 20px;
+
+            outline: none;
+
+            font-size: 13px;
+        }
+
+        .input-bar input:focus {
+            border-color: var(--plum);
+        }
+
+        /* SEND BUTTON */
+        button {
+            border: none;
+
+            background: var(--plum);
+
+            color: white;
+
+            padding: 0 18px;
+
+            border-radius: 20px;
+
+            cursor: pointer;
+
+            font-weight: bold;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+
+
+<body>
+
+    <div class="phone">
+
+        <!-- HEADER -->
+        <div class="phone-header">
+
+            <h1>PENZI</h1>
+
+            <p>Dating App Simulator</p>
+
+        </div>
+
+
+        <!-- PHONE NUMBER -->
+        <div class="phone-number-bar">
+
+            <input
+                type="text"
+                id="phone"
+                placeholder="Enter phone number"
+                value="0712345678"
+            >
+
+        </div>
+
+
+        <!-- SMS MESSAGES -->
+        <div class="messages" id="messages">
+
+            <div class="bubble received">
+                Welcome to PENZI
+
+                Sending SMS to 22141
+
+                Type PENZI for service activation.
+            </div>
+
+        </div>
+
+
+        <!-- INSTRUCTIONS -->
+        <p class="hint">
+            Try: PENZI, then START#Name#Age#Gender#County#Town
+        </p>
+
+
+        <!-- MESSAGE INPUT -->
+        <div class="input-bar">
+
+            <input
+                type="text"
+                id="messageInput"
+                placeholder="Type your SMS..."
+                onkeydown="handleKeyPress(event)"
+            >
+
+            <button onclick="sendMessage()">
+                Send
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        async function sendMessage() {
+
+            const phoneInput =
+                document.getElementById("phone");
+
+            const messageInput =
+                document.getElementById("messageInput");
+
+            const phone =
+                phoneInput.value.trim();
+
+            const message =
+                messageInput.value.trim();
+
+
+            /* Check phone number */
+            if (!phone) {
+
+                alert("Please enter a phone number.");
+
+                return;
+            }
+
+
+            /* Check message */
+            if (!message) {
+
+                return;
+            }
+
+
+            /* Display user's SMS */
+            addBubble(
+                message,
+                "sent"
+            );
+
+
+            /* Clear message input */
+            messageInput.value = "";
+
+
+            try {
+
+                const response = await fetch(
+                    "http://localhost:5000/sms",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            phone: phone,
+                            message: message
+                        })
+                    }
+                );
+
+
+                /* Check server response */
+                if (!response.ok) {
+
+                    throw new Error("Server error");
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                /* Display server reply */
+                if (data.reply) {
+
+                    addBubble(
+                        data.reply,
+                        "received"
+                    );
+
+                } else {
+
+                    addBubble(
+                        "No response received from the server.",
+                        "received"
+                    );
+                }
+
+
+            } catch (error) {
+
+                console.error(error);
+
+                addBubble(
+                    "Unable to connect to the PENZI server. Make sure your Flask server is running.",
+                    "received"
+                );
+            }
+        }
+
+
+        /* ADD MESSAGE BUBBLE */
+        function addBubble(text, type) {
+
+            const messages =
+                document.getElementById("messages");
+
+
+            const bubble =
+                document.createElement("div");
+
+
+            bubble.className =
+                "bubble " + type;
+
+
+            bubble.textContent =
+                text;
+
+
+            messages.appendChild(
+                bubble
+            );
+
+
+            /* Scroll to newest message */
+            messages.scrollTop =
+                messages.scrollHeight;
+        }
+
+
+        /* ENTER KEY */
+        function handleKeyPress(event) {
+
+            if (event.key === "Enter") {
+
+                sendMessage();
+            }
+        }
+
+    </script>
+
+</body>
+</html>

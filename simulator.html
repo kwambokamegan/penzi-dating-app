@@ -22,7 +22,7 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: var(--cream);
+            background: #2B1620;
             font-family: Arial, sans-serif;
             color: var(--brown);
 
@@ -62,6 +62,35 @@
         }
 
         /* PHONE NUMBER */
+        .welcome-block {
+            text-align: center;
+            padding: 22px 20px 10px;
+            background: var(--white);
+        }
+
+        .welcome-block h2 {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-style: italic;
+            font-size: 22px;
+            color: var(--plum);
+            margin: 0 0 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .welcome-block .welcome-sub {
+            font-size: 12px;
+            color: #a5828f;
+            margin: 0 0 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .welcome-block .welcome-cta {
+            font-size: 13px;
+            color: var(--brown);
+            margin: 0;
+        }
+
         .phone-number-bar {
             display: flex;
             padding: 12px;
@@ -85,7 +114,7 @@
 
         /* MESSAGES */
         .messages {
-            height: 460px;
+            height: 320px;
 
             padding: 15px;
 
@@ -220,6 +249,13 @@
 
         </div>
 
+        <!-- WELCOME BLOCK -->
+        <div class="welcome-block">
+            <h2>Welcome to PENZI</h2>
+            <p class="welcome-sub">SMS to 22141</p>
+            <p class="welcome-cta">Type <strong>PENZI</strong> for service activation</p>
+        </div>
+
 
         <!-- PHONE NUMBER -->
         <div class="phone-number-bar">
@@ -227,8 +263,7 @@
             <input
                 type="text"
                 id="phone"
-                placeholder="Enter phone number"
-                value="0712345678"
+                placeholder="Enter your number here"
             >
 
         </div>
@@ -236,15 +271,6 @@
 
         <!-- SMS MESSAGES -->
         <div class="messages" id="messages">
-
-            <div class="bubble received">
-                Welcome to PENZI
-
-                Sending SMS to 22141
-
-                Type PENZI for service activation.
-            </div>
-
         </div>
 
 

@@ -23,21 +23,6 @@ def sms():
     return jsonify({"reply": handle_message(phone, message)})
 
 
-@app.route("/api/stats", methods=["GET"])
-def stats():
-    return jsonify(services.dashboard_stats())
-
-
-@app.route("/api/users", methods=["GET"])
-def users():
-    return jsonify(services.recent_users())
-
-
-@app.route("/api/interest-requests", methods=["GET"])
-def interest_requests():
-    return jsonify(services.recent_interests())
-
-
 @app.route("/api/outbox/<phone>", methods=["GET"])
 def outbox(phone):
     return jsonify(services.pending_messages_for(phone))

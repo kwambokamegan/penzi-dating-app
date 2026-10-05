@@ -561,3 +561,49 @@ def mark_followup_sent(phone_number):
         """,
         (phone_number,)
     )
+
+# ---------- DASHBOARD ----------
+
+def get_dashboard_stats():
+    users = _run_query(
+        """
+        SELECT COUNT(*) AS total,
+               SUM(registration_stage = 'complete') AS complete_count,
+               SUM(registration_stage = 'awaiting_details') AS start_count,
+               SUM(registration_stage = 'awaiting_description') AS details_count
+        FROM users
+        """,
+        one=True
+    )
+    searches = _run_query(
+        "SELECT COUNT(*) AS total FROM match_searches", one=True
+    )["total"]
+    pending = _run_query(
+        "SELECT COUNT(*) AS total FROM interest_requests "
+        "WHERE status = 'notified'",
+        one=True
+    )["total"]
+    return {
+        "total_users": int(users["total"]),
+        "complete_profiles": int(users["complete_count"] or 0),
+        "awaiting_details": int(users["start_count"] or 0),
+        "awaiting_description": int(users["details_count"] or 0),
+        "total_searches": int(searches),
+        "pending_requests": int(pending),
+    }
+
+
+def list_recent_users(limit=20):
+    return _run_query(
+        "SELECT phone_number, name, age, gender, county, town, "
+        "registration_stage FROM users ORDER BY id DESC LIMIT %s",
+        (limit,)
+    )
+
+
+def list_recent_interests(limit=20):
+    return _run_query(
+        "SELECT requester_phone, target_phone, status, created_at "
+        "FROM interest_requests ORDER BY id DESC LIMIT %s",
+        (limit,)
+    )

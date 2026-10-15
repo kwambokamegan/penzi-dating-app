@@ -35,6 +35,17 @@ def outbox_has(label, phone, snippet):
     report(label, ok, f"      outbox for {phone}: {[n['message'] for n in notes]}")
 
 
+# reset activation state for the test numbers
+for _p in (JAMAL, MARIA, STRANGER, LATE):
+    repository._run_write(
+        "DELETE FROM activations WHERE phone = %s", (_p,))
+
+check("0a START before PENZI is blocked", JAMAL,
+      "start#Jamal Jalang'o#33#Male#Testland#Bamburi",
+      ["unlock the service", "SMS the word PENZI to 22141"])
+check("0b bare START before PENZI is blocked", JAMAL, "START",
+      ["SMS the word PENZI to 22141"])
+
 check("1 PENZI welcome", JAMAL, "PENZI", [
     "Welcome to our dating service with 6000 potential dating partners!",
     "start#name#age#gender#county#town to 22141",
@@ -54,6 +65,7 @@ check("4 MYSELF", JAMAL, "MYSELF tall, dark and handsome", [
     "match#age#town to 22141",
     "E.g., match#23-25#Kisumu"])
 
+check("4b Maria PENZI", MARIA, "PENZI", ["Welcome to our dating service"])
 check("5 Maria start", MARIA, "start#Maria Mwende#31#Female#Testland#Testville",
       ["Your profile has been created successfully Maria."])
 check("6 Maria details", MARIA, "details#graduate#nurse#single#christian#kamba",
@@ -83,12 +95,18 @@ check("11 YES", MARIA, "YES", [
     "Send DESCRIBE 0790000001 to get more details about Jamal."])
 
 check("12 second YES has nothing pending", MARIA, "YES", ["no pending requests"])
-check("13 unregistered cannot match", STRANGER, "match#20-30#Nairobi",
-      ["You need to register first."])
+check("13a unactivated cannot match", STRANGER, "match#20-30#Nairobi",
+      ["SMS the word PENZI to 22141"])
+check("13b PENZI activates", STRANGER, "PENZI", ["Welcome to our dating service"])
+check("13c bare START after PENZI", STRANGER, "START",
+      ["Almost there!", "start#name#age#gender#county#town to 22141"])
+check("13d activated but unregistered cannot match", STRANGER,
+      "match#20-30#Nairobi", ["You need to register first."])
 check("14 unknown command lists valid ones", JAMAL, "hello", ["Valid commands:"])
 check("15 already registered", JAMAL, "start#Again#30#Male#X#Y",
       ["You are already registered."])
 
+check("15b Late PENZI", LATE, "PENZI", ["Welcome to our dating service"])
 check("16 start only, no details", LATE, "start#Late Larry#40#Male#Testland#Testville",
       ["Your profile has been created successfully Late."])
 services.send_details_followups(minutes=0)

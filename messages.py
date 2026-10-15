@@ -259,3 +259,16 @@ def description_reply(target):
         return f"{first} hasn't written a description yet."
     w = words(target["gender"])
     return f"{first} describes {w['self']} as {target['self_description']}"
+
+
+NOT_ACTIVATED = (
+    "Welcome to PENZI, where meaningful connections begin! "
+    "To unlock the service, SMS the word PENZI to 22141 "
+    "for service activation."
+)
+
+START_BAD_FORMAT = (
+    "Almost there! To create your profile, SMS "
+    "start#name#age#gender#county#town to 22141. "
+    "E.g., start#John Doe#26#Male#Nakuru#Naivasha"
+)

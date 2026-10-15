@@ -12,6 +12,8 @@ def parse_command(text):
         return "PENZI"
     if upper.startswith("START#"):
         return "START"
+    if re.match(r"^START(\s|$)", upper):
+        return "START_FORMAT"
     if upper.startswith("DETAILS#"):
         return "DETAILS"
     if re.match(r"^MYSELF(\s|#|$)", upper):
@@ -65,6 +67,21 @@ def handle_message(phone_number, message):
         user = repository.get_user_by_phone(phone_number)
         stage = services.stage_of(user)
         command = parse_command(text)
+
+        # ---- activation gate (only for people not yet registered) ----
+        if user is None:
+            if command == "PENZI":
+                repository.mark_activated(phone_number)
+                return _route(command, user, phone_number, text)
+
+            if not repository.is_activated(phone_number):
+                return messages.NOT_ACTIVATED
+
+            if command == "START_FORMAT":
+                return messages.START_BAD_FORMAT
+        elif command == "START_FORMAT":
+            return messages.not_allowed(stage, "START")
+        # ---------------------------------------------------------------
 
         if command is None:
             if stage == "opted_out":

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 import services
@@ -6,6 +6,16 @@ from sms_handler import handle_message
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route("/")
+def simulator_home():
+    return send_from_directory(".", "simulator.html")
+
+
+@app.route("/simulator.html")
+def simulator_page():
+    return send_from_directory(".", "simulator.html")
+
 
 
 @app.errorhandler(ConnectionError)

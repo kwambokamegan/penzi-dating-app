@@ -607,3 +607,23 @@ def list_recent_interests(limit=20):
         "FROM interest_requests ORDER BY id DESC LIMIT %s",
         (limit,)
     )
+
+
+# ============================================================
+# ACTIVATION (people who have texted PENZI)
+# ============================================================
+
+def mark_activated(phone_number):
+    return _run_write(
+        "INSERT IGNORE INTO activations (phone) VALUES (%s)",
+        (phone_number,)
+    )
+
+
+def is_activated(phone_number):
+    row = _run_query(
+        "SELECT 1 AS ok FROM activations WHERE phone = %s",
+        (phone_number,),
+        one=True
+    )
+    return row is not None

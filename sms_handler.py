@@ -26,6 +26,8 @@ def parse_command(text):
         return "DESCRIBE"
     if upper == "YES":
         return "YES"
+    if upper == "NO":
+        return "NO"
     if upper == "STOP":
         return "STOP"
     if re.fullmatch(r"\+?\d{9,13}", text.replace(" ", "")):
@@ -56,6 +58,8 @@ def _route(command, user, phone_number, text):
         return services.describe(user, _describe_number(text))
     if command == "YES":
         return services.confirm_interest(user)
+    if command == "NO":
+        return services.decline_interest(user)
     if command == "STOP":
         return services.opt_out(user)
     return messages.unknown_command(services.stage_of(user))

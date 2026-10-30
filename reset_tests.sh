@@ -1,0 +1,2 @@
+#!/bin/bash
+mysql -u penzi_user -p penzi_db -e "DELETE FROM outbox WHERE phone_number LIKE '0790000%'; DELETE FROM interest_requests WHERE requester_phone LIKE '0790000%' OR target_phone LIKE '0790000%'; DELETE FROM match_results WHERE search_id IN (SELECT id FROM match_searches WHERE requester_phone LIKE '0790000%'); DELETE FROM match_searches WHERE requester_phone LIKE '0790000%'; DELETE FROM users WHERE phone_number LIKE '0790000%';"

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PENZI Inbox</title>
+<style>
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: #FFF7F0; color: #351A25;
+         font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: #8E1B4F; color: #fff; padding: 14px 16px;
+           display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 20px; }
+  main { max-width: 520px; margin: 0 auto; padding: 16px; }
+  h2 { font-size: 17px; margin: 22px 0 10px; color: #8E1B4F; }
+  label { display: block; margin: 12px 0 6px; font-weight: 600; }
+  input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #EAD8D0;
+          border-radius: 10px; background: #fff; color: #351A25; }
+  button { padding: 12px 16px; font-size: 16px; border: 0; border-radius: 10px;
+           background: #8E1B4F; color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: #8E1B4F; border: 1px solid #8E1B4F; }
+  button.small { padding: 8px 12px; font-size: 14px; }
+  .full { width: 100%; margin-top: 14px; }
+  .card { background: #fff; border: 1px solid #EAD8D0; border-radius: 12px;
+          padding: 14px; margin-bottom: 10px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .badge { font-size: 12px; padding: 3px 10px; border-radius: 999px;
+           border: 1px solid #EAD8D0; text-transform: capitalize; }
+  .badge.pending { background: #FFF1D6; }
+  .badge.accepted { background: #DDF3E4; }
+  .badge.expired, .badge.declined { background: #EEE; color: #777; }
+  .note { margin: 12px 0; padding: 10px 12px; border-radius: 10px; background: #fff;
+          border: 1px solid #EAD8D0; white-space: pre-wrap; }
+  .note.bad { border-color: #8E1B4F; color: #8E1B4F; }
+  .muted { color: #7a5a66; font-size: 14px; }
+  .profile { margin-top: 10px; padding: 10px; background: #FFF7F0;
+             border-radius: 8px; white-space: pre-wrap; font-size: 14px; }
+  .tabs { display: flex; gap: 8px; margin-top: 14px; }
+  .tab { flex: 1; background: #fff; color: #8E1B4F; border: 1px solid #8E1B4F; }
+  .tab.active { background: #8E1B4F; color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PENZI</h1>
+  <button id="logoutBtn" class="ghost small" hidden>Log out</button>
+</header>
+<main>
+  <section id="loginView" hidden>
+    <h2>Log in</h2>
+    <label for="phone">Your phone number</label>
+    <input id="phone" type="tel" inputmode="numeric" placeholder="07XXXXXXXX" autocomplete="tel">
+    <button id="sendCodeBtn" class="full">Send me a code</button>
+    <div id="codeStep" hidden>
+      <label for="code">6-digit code</label>
+      <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+      <button id="verifyBtn" class="full">Log in</button>
+    </div>
+    <div id="loginNote" class="note" hidden></div>
+  </section>
+
+  <section id="inboxView" hidden>
+    <div class="tabs">
+      <button id="tabIn" class="tab active">Received</button>
+      <button id="tabOut" class="tab">Sent</button>
+    </div>
+    <div id="paneIn">
+      <h2 id="inTitle">Requests for you</h2>
+      <div id="incoming"></div>
+      <h2>Reply</h2>
+      <p class="muted">Type YES or NO to answer the newest request, or DESCRIBE 07XXXXXXXX for more details.</p>
+      <input id="cmd" type="text" placeholder="Type your reply, e.g. YES" autocomplete="off">
+      <button id="cmdBtn" class="full">Send</button>
+      <div id="inboxNote" class="note" hidden></div>
+    </div>
+    <div id="paneOut" hidden>
+      <h2 id="outTitle">Your requests</h2>
+      <div id="outgoing"></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function api(path, method, body) {
+  const res = await fetch(path, {
+    method: method,
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = {};
+  try { data = await res.json(); } catch (e) {}
+  return { status: res.status, data: data };
+}
+
+function say(id, text, bad) {
+  const e = $(id);
+  e.textContent = text;
+  e.className = "note" + (bad ? " bad" : "");
+  e.hidden = false;
+  e.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function showView(name) {
+  $("loginView").hidden = name !== "login";
+  $("inboxView").hidden = name !== "inbox";
+  $("logoutBtn").hidden = name !== "inbox";
+}
+
+let phone = "";
+
+$("sendCodeBtn").onclick = async () => {
+  phone = $("phone").value.trim();
+  if (!phone) { say("loginNote", "Please enter your phone number.", true); return; }
+  const r = await api("api/login/request", "POST", { phone: phone });
+  say("loginNote", r.data.message || r.data.error || "Something went wrong.", r.status !== 200);
+  if (r.status === 200) { $("codeStep").hidden = false; $("code").focus(); }
+};
+
+$("verifyBtn").onclick = async () => {
+  const code = $("code").value.trim();
+  const r = await api("api/login/verify", "POST", { phone: phone, code: code });
+  if (r.status !== 200) { say("loginNote", r.data.error || "Login failed.", true); return; }
+  $("code").value = "";
+  $("loginNote").hidden = true;
+  loadInbox();
+};
+
+$("logoutBtn").onclick = async () => {
+  await api("api/logout", "POST");
+  $("inboxNote").hidden = true;
+  $("codeStep").hidden = true;
+  showView("login");
+};
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function person(r) {
+  return r.name + ", " + r.age + ", " + r.county;
+}
+
+function header(r) {
+  const row = el("div", "row");
+  row.appendChild(el("strong", "", r.name));
+  row.appendChild(el("span", "badge " + r.status, r.status));
+  return row;
+}
+
+function renderIncoming(list) {
+  const box = $("incoming");
+  box.innerHTML = "";
+  if (!list.length) { box.appendChild(el("p", "muted", "No requests yet.")); return; }
+  list.forEach((r) => {
+    const card = el("div", "card");
+    card.appendChild(header(r));
+    card.appendChild(el("p", "", person(r) + " is interested in you."));
+    if (r.status === "accepted" && r.profile) {
+      card.appendChild(el("div", "profile", r.profile));
+    }
+    box.appendChild(card);
+  });
+}
+
+function renderOutgoing(list) {
+  const box = $("outgoing");
+  box.innerHTML = "";
+  if (!list.length) { box.appendChild(el("p", "muted", "You have not sent any requests.")); return; }
+  list.forEach((r) => {
+    const card = el("div", "card");
+    card.appendChild(header(r));
+    card.appendChild(el("p", "muted", person(r)));
+    if (r.status === "accepted" && r.message) {
+      card.appendChild(el("div", "profile", r.message));
+    }
+    box.appendChild(card);
+  });
+}
+
+async function loadInbox() {
+  const r = await api("api/me/interests", "GET");
+  if (r.status === 401) { showView("login"); return; }
+  const pend = (r.data.incoming || []).filter((x) => x.status === "pending").length;
+  $("tabIn").textContent = "Received" + (pend ? " (" + pend + ")" : "");
+  renderIncoming(r.data.incoming || []);
+  renderOutgoing(r.data.outgoing || []);
+  showView("inbox");
+}
+
+async function respond(id, accept) {
+  const r = await api("api/me/interests/" + id + "/respond", "POST", { accept: accept });
+  say("inboxNote", r.data.reply || r.data.error || "Something went wrong.", !r.data.ok);
+  loadInbox();
+}
+
+async function sendCommand() {
+  const text = $("cmd").value.trim();
+  if (!text) { return; }
+  const r = await api("api/me/command", "POST", { message: text });
+  say("inboxNote", r.data.reply || r.data.error || ("Something went wrong (status " + r.status + ")."), r.status !== 200);
+  $("cmd").value = "";
+  loadInbox();
+}
+$("cmdBtn").onclick = sendCommand;
+$("cmd").addEventListener("keydown", (e) => { if (e.key === "Enter") { sendCommand(); } });
+
+function showTab(which) {
+  $("paneIn").hidden = which !== "in";
+  $("paneOut").hidden = which !== "out";
+  $("tabIn").className = "tab" + (which === "in" ? " active" : "");
+  $("tabOut").className = "tab" + (which === "out" ? " active" : "");
+}
+$("tabIn").onclick = () => showTab("in");
+$("tabOut").onclick = () => showTab("out");
+
+loadInbox();
+</script>
+</body>
+</html>

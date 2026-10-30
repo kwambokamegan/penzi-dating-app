@@ -346,7 +346,7 @@
             try {
 
                 const response = await fetch(
-                    "http://localhost:5000/sms",
+                    "/sms",
                     {
                         method: "POST",
 
@@ -432,6 +432,55 @@
         }
 
 
+                /* AUTO-SHOW NEW OUTBOX MESSAGES (login codes etc.) */
+        let pollPhone = "";
+        let lastSeenId = null;
+
+        async function pollOutbox() {
+            const phone =
+                document.getElementById("phone").value.trim();
+
+            if (!/^\+?\d{9,13}$/.test(phone.replace(/\s/g, ""))) {
+                return;
+            }
+
+            if (phone !== pollPhone) {
+                pollPhone = phone;
+                lastSeenId = null;
+            }
+
+            try {
+                const res = await fetch(
+                    "/api/outbox/" + encodeURIComponent(phone)
+                );
+                if (!res.ok) { return; }
+                const rows = await res.json();
+
+                if (lastSeenId === null) {
+                    lastSeenId = 0;
+                }
+
+                const shown = Array.from(
+                    document.querySelectorAll(".bubble.received")
+                ).map((b) => b.textContent);
+
+                rows
+                    .filter((r) => r.id > lastSeenId)
+                    .sort((a, b) => a.id - b.id)
+                    .forEach((r) => {
+                        lastSeenId = Math.max(lastSeenId, r.id);
+                        if (!shown.includes(r.message)) {
+                            addBubble(r.message, "received");
+                        }
+                    });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        setInterval(pollOutbox, 3000);
+
+
         /* ENTER KEY */
         function handleKeyPress(event) {
 
@@ -440,6 +489,56 @@
                 sendMessage();
             }
         }
+
+    
+        /* WELCOME MESSAGE WHEN A NEW NUMBER IS ENTERED */
+        let lastGreeted = "";
+        let greetTimer = null;
+
+        async function greetIfNew() {
+
+            const phone =
+                document.getElementById("phone").value.trim();
+
+            const looksLikeNumber =
+                /^\+?\d{9,13}$/.test(phone.replace(/\s/g, ""));
+
+            if (!looksLikeNumber || phone === lastGreeted) {
+                return;
+            }
+
+            lastGreeted = phone;
+
+            /* a new number starts a fresh conversation */
+            document.getElementById("messages").innerHTML = "";
+
+            try {
+                const response = await fetch(
+                    "/api/greeting/" +
+                    encodeURIComponent(phone)
+                );
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.reply) {
+                    addBubble(data.reply, "received");
+                }
+
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        document.getElementById("phone").addEventListener("input", () => {
+            clearTimeout(greetTimer);
+            greetTimer = setTimeout(greetIfNew, 600);
+        });
+
+        document.getElementById("phone").addEventListener("change", greetIfNew);
 
     </script>
 

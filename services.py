@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import re
+import secrets
 
 import gateway
 import messages
@@ -9,6 +12,10 @@ MIN_AGE = 18
 MAX_AGE = 100
 MATCH_BATCH_SIZE = 3
 REQUEST_EXPIRY_HOURS = 24
+LOGIN_CODE_MINUTES = 5
+LOGIN_CODE_WINDOW_MINUTES = 10
+LOGIN_MAX_CODES = 3
+LOGIN_MAX_ATTEMPTS = 5
 DETAILS_FOLLOWUP_MINUTES = 5
 MAX_DESCRIPTION_LENGTH = 300
 DETAIL_LIMITS = (50, 50, 20, 30, 30)
@@ -206,11 +213,8 @@ def confirm_interest(user):
     )
     if pending is None:
         return messages.no_pending(REQUEST_EXPIRY_HOURS)
-    repository.mark_interest_revealed(pending["id"])
-    requester = repository.get_user_by_phone(pending["requester_phone"])
-    if requester is None or requester["opted_out"]:
-        return messages.NOT_FOUND
-    return messages.profile_reply(requester)
+    ok, reply = respond_to_interest(user, pending["id"], True)
+    return reply
 
 
 def opt_out(user):
@@ -236,3 +240,155 @@ def pending_messages_for(phone_number):
     rows = repository.get_undelivered(phone_number)
     repository.mark_delivered([r["id"] for r in rows])
     return rows
+
+
+# ---------- WEB LOGIN ----------
+
+def _clean_phone(phone_number):
+    return re.sub(r"\s+", "", phone_number or "")
+
+
+def _hash_code(phone_number, code):
+    return hashlib.sha256(f"{phone_number}:{code}".encode()).hexdigest()
+
+
+def request_login_code(phone_number):
+    phone_number = _clean_phone(phone_number)
+    if not re.fullmatch(r"\+?\d{9,13}", phone_number):
+        return messages.LOGIN_CODE_SENT
+    user = repository.get_user_by_phone(phone_number)
+    if user is None or user["opted_out"]:
+        return messages.LOGIN_CODE_SENT
+    recent = repository.count_recent_login_codes(
+        phone_number, LOGIN_CODE_WINDOW_MINUTES
+    )
+    if recent >= LOGIN_MAX_CODES:
+        return messages.LOGIN_CODE_SENT
+    code = f"{secrets.randbelow(1000000):06d}"
+    repository.save_login_code(
+        phone_number, _hash_code(phone_number, code), LOGIN_CODE_MINUTES
+    )
+    gateway.send_sms(
+        phone_number, messages.login_code_text(code, LOGIN_CODE_MINUTES)
+    )
+    return messages.LOGIN_CODE_SENT
+
+
+def verify_login_code(phone_number, code):
+    phone_number = _clean_phone(phone_number)
+    code = (code or "").strip()
+    active = repository.get_active_login_code(phone_number)
+    if active is None:
+        return None, messages.LOGIN_CODE_INVALID
+    if active["attempts"] >= LOGIN_MAX_ATTEMPTS:
+        return None, messages.LOGIN_TOO_MANY_ATTEMPTS
+    expected = active["code_hash"]
+    if not hmac.compare_digest(expected, _hash_code(phone_number, code)):
+        repository.add_login_attempt(active["id"])
+        return None, messages.LOGIN_CODE_INVALID
+    repository.mark_login_code_used(active["id"])
+    user = repository.get_user_by_phone(phone_number)
+    if user is None or user["opted_out"]:
+        return None, messages.LOGIN_CODE_INVALID
+    return user, None
+
+
+# ---------- INBOX ----------
+
+def my_interests(user):
+    incoming = []
+    rows = repository.list_incoming_interests(
+        user["phone_number"], REQUEST_EXPIRY_HOURS
+    )
+    for r in rows:
+        if r["status"] == "revealed":
+            status = "accepted"
+        elif r["status"] == "declined":
+            status = "declined"
+        else:
+            status = "pending" if r["active"] else "expired"
+        item = {
+            "id": r["id"],
+            "name": messages.first_name(r["name"]),
+            "age": r["age"],
+            "county": r["county"],
+            "status": status,
+            "created_at": r["created_at"],
+            "profile": None,
+        }
+        if status == "accepted":
+            requester = repository.get_user_by_phone(r["requester_phone"])
+            if requester:
+                item["profile"] = messages.profile_reply(requester)
+        incoming.append(item)
+
+    outgoing = []
+    rows = repository.list_outgoing_interests(
+        user["phone_number"], REQUEST_EXPIRY_HOURS
+    )
+    for r in rows:
+        if r["status"] == "revealed":
+            status = "accepted"
+        else:
+            status = "pending" if r["active"] else "expired"
+        item = {
+            "id": r["id"],
+            "name": messages.first_name(r["name"]),
+            "age": r["age"],
+            "county": r["county"],
+            "status": status,
+            "created_at": r["created_at"],
+            "message": None,
+        }
+        if status == "accepted":
+            target = repository.get_user_by_phone(r["target_phone"])
+            if target:
+                item["message"] = messages.accepted_notice(target, user)
+        outgoing.append(item)
+
+    return {"incoming": incoming, "outgoing": outgoing}
+
+
+def respond_to_interest(user, interest_id, accept):
+    interest = repository.get_interest(interest_id)
+    if interest is None or interest["target_phone"] != user["phone_number"]:
+        return False, messages.INTEREST_NOT_FOUND
+    if interest["status"] != "notified":
+        return False, messages.INTEREST_ALREADY_ANSWERED
+    active = repository.get_active_interest(
+        interest_id, user["phone_number"], REQUEST_EXPIRY_HOURS
+    )
+    if active is None:
+        return False, messages.INTEREST_EXPIRED
+    requester = repository.get_user_by_phone(interest["requester_phone"])
+    if requester is None or requester["opted_out"]:
+        return False, messages.INTEREST_NOT_FOUND
+    if not accept:
+        repository.set_interest_status(interest_id, "declined")
+        return True, messages.INTEREST_DECLINED
+    repository.set_interest_status(interest_id, "revealed")
+    gateway.send_sms(
+        requester["phone_number"], messages.accepted_notice(user, requester)
+    )
+    return True, (
+        messages.profile_reply(requester)
+        + "\n\n"
+        + messages.match_wish(requester)
+    )
+
+
+def user_by_phone(phone_number):
+    user = repository.get_user_by_phone(phone_number)
+    if user is None or user["opted_out"]:
+        return None
+    return user
+
+
+def decline_interest(user):
+    pending = repository.get_pending_interest_for(
+        user["phone_number"], REQUEST_EXPIRY_HOURS
+    )
+    if pending is None:
+        return messages.no_pending(REQUEST_EXPIRY_HOURS)
+    ok, reply = respond_to_interest(user, pending["id"], False)
+    return reply

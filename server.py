@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
+import messages
+import repository
 import services
 from sms_handler import handle_message
 
@@ -33,6 +35,19 @@ def sms():
     return jsonify({"reply": handle_message(phone, message)})
 
 
+@app.route("/api/greeting/<phone>", methods=["GET"])
+def greeting(phone):
+    """
+    Welcome message for a number that has neither registered nor
+    activated yet. Returns {"reply": null} for everyone else.
+    """
+    phone = phone.strip()
+    user = repository.get_user_by_phone(phone)
+    if user is None and not repository.is_activated(phone):
+        return jsonify({"reply": messages.NOT_ACTIVATED})
+    return jsonify({"reply": None})
+
+
 @app.route("/api/outbox/<phone>", methods=["GET"])
 def outbox(phone):
     return jsonify(services.pending_messages_for(phone))
@@ -46,5 +61,10 @@ def run_followups():
     return jsonify({"sent": services.send_details_followups(minutes)})
 
 
+import web_routes
+
+web_routes.register(app)
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", debug=False, port=5000)

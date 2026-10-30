@@ -627,3 +627,107 @@ def is_activated(phone_number):
         one=True
     )
     return row is not None
+
+
+# ---------- LOGIN CODES ----------
+
+def save_login_code(phone_number, code_hash, minutes):
+    _run_write(
+        "UPDATE login_codes SET used = 1 "
+        "WHERE phone_number = %s AND used = 0",
+        (phone_number,)
+    )
+    return _run_write(
+        "INSERT INTO login_codes (phone_number, code_hash, expires_at) "
+        "VALUES (%s, %s, NOW() + INTERVAL %s MINUTE)",
+        (phone_number, code_hash, minutes)
+    )
+
+
+def count_recent_login_codes(phone_number, minutes):
+    row = _run_query(
+        "SELECT COUNT(*) AS total FROM login_codes "
+        "WHERE phone_number = %s "
+        "AND created_at >= NOW() - INTERVAL %s MINUTE",
+        (phone_number, minutes), one=True
+    )
+    return row["total"]
+
+
+def get_active_login_code(phone_number):
+    return _run_query(
+        "SELECT id, code_hash, attempts FROM login_codes "
+        "WHERE phone_number = %s AND used = 0 AND expires_at > NOW() "
+        "ORDER BY id DESC LIMIT 1",
+        (phone_number,), one=True
+    )
+
+
+def add_login_attempt(code_id):
+    _run_write(
+        "UPDATE login_codes SET attempts = attempts + 1 WHERE id = %s",
+        (code_id,)
+    )
+
+
+def mark_login_code_used(code_id):
+    _run_write(
+        "UPDATE login_codes SET used = 1 WHERE id = %s",
+        (code_id,)
+    )
+
+
+# ---------- INBOX: INTEREST REQUESTS ----------
+
+def get_interest(interest_id):
+    return _run_query(
+        "SELECT * FROM interest_requests WHERE id = %s",
+        (interest_id,), one=True
+    )
+
+
+def list_incoming_interests(phone_number, hours):
+    return _run_query(
+        """
+        SELECT ir.id, ir.requester_phone, ir.status, ir.created_at,
+               ir.created_at >= NOW() - INTERVAL %s HOUR AS active,
+               u.name, u.age, u.gender, u.county, u.town
+        FROM interest_requests ir
+        JOIN users u ON u.phone_number = ir.requester_phone
+        WHERE ir.target_phone = %s
+        ORDER BY ir.id DESC LIMIT 50
+        """,
+        (hours, phone_number)
+    )
+
+
+def list_outgoing_interests(phone_number, hours):
+    return _run_query(
+        """
+        SELECT ir.id, ir.target_phone, ir.status, ir.created_at,
+               ir.created_at >= NOW() - INTERVAL %s HOUR AS active,
+               u.name, u.age, u.gender, u.county, u.town
+        FROM interest_requests ir
+        JOIN users u ON u.phone_number = ir.target_phone
+        WHERE ir.requester_phone = %s
+        ORDER BY ir.id DESC LIMIT 50
+        """,
+        (hours, phone_number)
+    )
+
+
+def set_interest_status(interest_id, status):
+    _run_write(
+        "UPDATE interest_requests "
+        "SET status = %s, responded_at = NOW() WHERE id = %s",
+        (status, interest_id)
+    )
+
+
+def get_active_interest(interest_id, target_phone, hours):
+    return _run_query(
+        "SELECT * FROM interest_requests "
+        "WHERE id = %s AND target_phone = %s AND status = 'notified' "
+        "AND created_at >= NOW() - INTERVAL %s HOUR",
+        (interest_id, target_phone, hours), one=True
+    )

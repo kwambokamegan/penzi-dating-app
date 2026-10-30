@@ -272,3 +272,47 @@ START_BAD_FORMAT = (
     "start#name#age#gender#county#town to 22141. "
     "E.g., start#John Doe#26#Male#Nakuru#Naivasha"
 )
+
+
+# ---------- LOGIN AND INBOX ----------
+
+LOGIN_CODE_SENT = (
+    "If that number is registered with PENZI, a login code has been sent to it."
+)
+LOGIN_CODE_INVALID = "That code is not correct or has expired."
+LOGIN_TOO_MANY_CODES = (
+    "Too many code requests. Please wait a few minutes and try again."
+)
+LOGIN_TOO_MANY_ATTEMPTS = (
+    "Too many wrong attempts. Please request a new code."
+)
+LOGIN_REQUIRED = "Please log in first."
+INTEREST_NOT_FOUND = "That request could not be found."
+INTEREST_EXPIRED = "That request has expired."
+INTEREST_ALREADY_ANSWERED = "You have already responded to that request."
+INTEREST_DECLINED = "Request declined. No message was sent."
+
+
+def login_code_text(code, minutes):
+    return (
+        f"Your PENZI login code is {code}. It expires in {minutes} "
+        "minutes. Do not share it with anyone."
+    )
+
+
+def accepted_notice(accepter, requester):
+    w = words(accepter["gender"])
+    return (
+        f"Good news {first_name(requester['name'])}! "
+        f"{first_name(accepter['name'])} is interested too. "
+        f"You can reach {w['obj']} on {accepter['phone_number']} to plan "
+        "something. We wish you both the very best in your romance!"
+    )
+
+
+def match_wish(requester):
+    return (
+        f"It's a match! You and {first_name(requester['name'])} are both "
+        "interested in each other. We wish you both all the very best in "
+        "your romance!"
+    )

@@ -96,3 +96,65 @@ def command(user):
     if not text:
         return jsonify({"error": "Please type a message."}), 400
     return jsonify({"reply": handle_message(user["phone_number"], text)})
+
+
+@bp.route("/api/login/password", methods=["POST"])
+def login_password():
+    data = request.get_json(silent=True) or {}
+    user, error = services.login_with_password(
+        str(data.get("phone", "")), str(data.get("password", ""))
+    )
+    if error:
+        return jsonify({"error": error}), 401
+    session.clear()
+    session["phone"] = user["phone_number"]
+    return jsonify({"ok": True, "name": messages.first_name(user["name"])})
+
+
+@bp.route("/api/password/set", methods=["POST"])
+def password_set():
+    data = request.get_json(silent=True) or {}
+    user, error = services.set_password_with_code(
+        str(data.get("phone", "")),
+        str(data.get("code", "")),
+        str(data.get("password", "")),
+    )
+    if error:
+        return jsonify({"error": error}), 400
+    session.clear()
+    session["phone"] = user["phone_number"]
+    return jsonify({"ok": True, "message": messages.PASSWORD_SET_OK})
+
+
+
+@bp.route("/api/setup/check", methods=["POST"])
+def setup_check():
+    data = request.get_json(silent=True) or {}
+    user = services.setup_user(str(data.get("phone", "")), str(data.get("token", "")))
+    if user is None:
+        return jsonify({"ok": False}), 200
+    return jsonify({"ok": True, "name": messages.first_name(user["name"]),
+                    "phone": user["phone_number"]})
+
+
+@bp.route("/api/setup/set", methods=["POST"])
+def setup_set():
+    data = request.get_json(silent=True) or {}
+    user, error = services.set_first_password(
+        str(data.get("phone", "")), str(data.get("token", "")),
+        str(data.get("password", "")),
+    )
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"ok": True})
+
+
+
+@bp.route("/welcome.html")
+def welcome_page():
+    return send_from_directory(BASE_DIR, "welcome.html")
+
+
+@bp.route("/welcome.jpg")
+def welcome_photo():
+    return send_from_directory(BASE_DIR, "welcome.jpg")

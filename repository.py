@@ -731,3 +731,44 @@ def get_active_interest(interest_id, target_phone, hours):
         "AND created_at >= NOW() - INTERVAL %s HOUR",
         (interest_id, target_phone, hours), one=True
     )
+
+
+# ---------- PASSWORDS ----------
+
+def get_password_state(phone_number):
+    return _run_query(
+        "SELECT password_hash, failed_logins, "
+        "(locked_until IS NOT NULL AND locked_until > NOW()) AS locked "
+        "FROM users WHERE phone_number = %s",
+        (phone_number,), one=True
+    )
+
+
+def set_password_hash(phone_number, password_hash):
+    return _run_write(
+        "UPDATE users SET password_hash = %s, failed_logins = 0, "
+        "locked_until = NULL WHERE phone_number = %s",
+        (password_hash, phone_number)
+    )
+
+
+def record_failed_login(phone_number, max_fails, lock_minutes):
+    _run_write(
+        "UPDATE users SET failed_logins = failed_logins + 1 "
+        "WHERE phone_number = %s",
+        (phone_number,)
+    )
+    return _run_write(
+        "UPDATE users SET locked_until = NOW() + INTERVAL %s MINUTE, "
+        "failed_logins = 0 "
+        "WHERE phone_number = %s AND failed_logins >= %s",
+        (lock_minutes, phone_number, max_fails)
+    )
+
+
+def clear_failed_logins(phone_number):
+    return _run_write(
+        "UPDATE users SET failed_logins = 0, locked_until = NULL "
+        "WHERE phone_number = %s",
+        (phone_number,)
+    )

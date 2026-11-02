@@ -300,13 +300,28 @@ def login_code_text(code, minutes):
     )
 
 
-def accepted_notice(accepter, requester):
+def accepted_notice(accepter, requester, link=None):
     w = words(accepter["gender"])
     return (
         f"Good news {first_name(requester['name'])}! "
         f"{first_name(accepter['name'])} is interested too. "
         f"You can reach {w['obj']} on {accepter['phone_number']} to plan "
-        "something. We wish you both the very best in your romance!"
+        "something. We wish you both the very best in your romance! "
+        f"Log in to see your requests: {link or login_link()}"
+    )
+
+
+def login_link():
+    import os
+    base = os.getenv("PUBLIC_URL", "").rstrip("/")
+    return f"{base}/inbox.html" if base else "the PENZI inbox"
+
+
+def request_sent(target, link=None):
+    return (
+        f"A request has been sent to {first_name(target['name'])} for you. "
+        "We will text you the reply. "
+        f"Log in to see your requests: {link or login_link()}"
     )
 
 
@@ -316,3 +331,13 @@ def match_wish(requester):
         "interested in each other. We wish you both all the very best in "
         "your romance!"
     )
+
+
+# ---------- PASSWORD LOGIN ----------
+
+LOGIN_PASSWORD_INVALID = (
+    "Wrong phone number or password, or too many attempts. "
+    "Please try again later, or use 'Forgot password / first time?'."
+)
+PASSWORD_TOO_SHORT = "Your password must be at least 6 characters long."
+PASSWORD_SET_OK = "Your password has been saved. You are now logged in."

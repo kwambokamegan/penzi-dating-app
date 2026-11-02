@@ -1,0 +1,4 @@
+ALTER TABLE users
+  ADD COLUMN password_hash VARCHAR(255) NULL,
+  ADD COLUMN failed_logins INT NOT NULL DEFAULT 0,
+  ADD COLUMN locked_until DATETIME NULL;

@@ -52,32 +52,73 @@
     <h2>Log in</h2>
     <label for="phone">Your phone number</label>
     <input id="phone" type="tel" inputmode="numeric" placeholder="07XXXXXXXX" autocomplete="tel">
-    <button id="sendCodeBtn" class="full">Send me a code</button>
-    <div id="codeStep" hidden>
-      <label for="code">6-digit code</label>
-      <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
-      <button id="verifyBtn" class="full">Log in</button>
+
+    <div id="pwMode">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password">
+      <button id="pwBtn" class="full">Log in</button>
+      <p><a href="#" id="forgotLink">Forgot password / first time?</a></p>
     </div>
+
+    <div id="codeMode" hidden>
+      <button id="sendCodeBtn" class="full">Send me a code</button>
+      <div id="codeStep" hidden>
+        <label for="code">6-digit code</label>
+        <input id="code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+        <label for="newpw">Choose a password (at least 6 characters)</label>
+        <input id="newpw" type="password" autocomplete="new-password">
+        <button id="setPwBtn" class="full">Save password and log in</button>
+      </div>
+      <p><a href="#" id="backLink">Back to password login</a></p>
+    </div>
+
     <div id="loginNote" class="note" hidden></div>
+  </section>
+
+  <section id="setupView" hidden>
+    <h2 id="setupHello">Welcome to PENZI</h2>
+    <div id="setupForm">
+      <label for="setupPhone">Your phone number</label>
+      <input id="setupPhone" type="tel" readonly>
+      <label for="setupPw">Choose a password (at least 6 characters)</label>
+      <input id="setupPw" type="password" autocomplete="new-password">
+      <label for="setupPw2">Enter it again to confirm</label>
+      <input id="setupPw2" type="password" autocomplete="new-password">
+      <label style="font-weight:400;margin:8px 0;display:block">
+        <input type="checkbox" id="setupShow" style="width:auto;margin-right:6px"> Show password
+      </label>
+      <button id="setupBtn" class="full">Confirm</button>
+      <p><a href="#" id="setupHave">I already have a password</a></p>
+    </div>
+    <div id="setupNote" class="note" hidden></div>
+    <button id="loginNowBtn" class="full" hidden>Log in now</button>
   </section>
 
   <section id="inboxView" hidden>
     <div class="tabs">
       <button id="tabIn" class="tab active">Received</button>
       <button id="tabOut" class="tab">Sent</button>
+      <button id="tabResp" class="tab">Responses</button>
     </div>
     <div id="paneIn">
       <h2 id="inTitle">Requests for you</h2>
       <div id="incoming"></div>
+      <div style="display:none">
       <h2>Reply</h2>
       <p class="muted">Type YES or NO to answer the newest request, or DESCRIBE 07XXXXXXXX for more details.</p>
       <input id="cmd" type="text" placeholder="Type your reply, e.g. YES" autocomplete="off">
       <button id="cmdBtn" class="full">Send</button>
+      </div>
       <div id="inboxNote" class="note" hidden></div>
     </div>
     <div id="paneOut" hidden>
       <h2 id="outTitle">Your requests</h2>
       <div id="outgoing"></div>
+    </div>
+    <div id="paneResp" hidden>
+      <h2>Responses</h2>
+      <div id="responses"></div>
+      <button id="moreBtn" class="full" style="margin-top:14px">Find more people</button>
     </div>
   </section>
 </main>
@@ -120,19 +161,40 @@ $("sendCodeBtn").onclick = async () => {
   if (r.status === 200) { $("codeStep").hidden = false; $("code").focus(); }
 };
 
-$("verifyBtn").onclick = async () => {
-  const code = $("code").value.trim();
-  const r = await api("api/login/verify", "POST", { phone: phone, code: code });
+$("pwBtn").onclick = async () => {
+  phone = $("phone").value.trim();
+  const r = await api("api/login/password", "POST", { phone: phone, password: $("pw").value });
   if (r.status !== 200) { say("loginNote", r.data.error || "Login failed.", true); return; }
-  $("code").value = "";
+  $("pw").value = "";
   $("loginNote").hidden = true;
   loadInbox();
 };
+
+$("setPwBtn").onclick = async () => {
+  phone = $("phone").value.trim();
+  const r = await api("api/password/set", "POST", {
+    phone: phone, code: $("code").value.trim(), password: $("newpw").value
+  });
+  if (r.status !== 200) { say("loginNote", r.data.error || "Could not save password.", true); return; }
+  $("code").value = "";
+  $("newpw").value = "";
+  $("loginNote").hidden = true;
+  loadInbox();
+};
+
+function showMode(which) {
+  $("pwMode").hidden = which !== "pw";
+  $("codeMode").hidden = which !== "code";
+  $("loginNote").hidden = true;
+}
+$("forgotLink").onclick = (e) => { e.preventDefault(); showMode("code"); };
+$("backLink").onclick = (e) => { e.preventDefault(); showMode("pw"); };
 
 $("logoutBtn").onclick = async () => {
   await api("api/logout", "POST");
   $("inboxNote").hidden = true;
   $("codeStep").hidden = true;
+  showMode("pw");
   showView("login");
 };
 
@@ -162,7 +224,25 @@ function renderIncoming(list) {
     const card = el("div", "card");
     card.appendChild(header(r));
     card.appendChild(el("p", "", person(r) + " is interested in you."));
-    if (r.status === "accepted" && r.profile) {
+    const expired = (r.active === 0 || r.active === false || r.status === "expired");
+    const waiting = (r.status === "notified" || r.status === "pending");
+    if (waiting && expired) {
+      card.appendChild(el("p", "muted", "Expired. This request can no longer be answered."));
+    } else if (waiting) {
+      const bar = el("div", "row");
+      bar.style.gap = "8px";
+      bar.style.marginTop = "8px";
+      const yes = el("button", "", "YES");
+      yes.style.flex = "1";
+      yes.onclick = () => respond(r.id, true);
+      const no = el("button", "ghost", "NO");
+      no.style.flex = "1";
+      no.onclick = () => respond(r.id, false);
+      bar.appendChild(yes);
+      bar.appendChild(no);
+      card.appendChild(bar);
+    }
+    if ((r.status === "accepted" || r.status === "revealed") && r.profile) {
       card.appendChild(el("div", "profile", r.profile));
     }
     box.appendChild(card);
@@ -184,13 +264,74 @@ function renderOutgoing(list) {
   });
 }
 
+function renderResponses(incoming, outgoing) {
+  const box = $("responses");
+  box.innerHTML = "";
+  let any = false;
+
+  (outgoing || []).forEach((r) => {
+    if (r.status !== "revealed" && r.status !== "accepted" && r.status !== "declined") { return; }
+    any = true;
+    const yes = r.status !== "declined";
+    const female = /^f/i.test(r.gender || "");
+    const card = el("div", "card");
+    const row = el("div", "row");
+    row.appendChild(el("strong", "", r.name));
+    row.appendChild(el("span", "badge " + r.status, yes ? "YES" : "NO"));
+    card.appendChild(row);
+    if (yes) {
+      const num = r.target_phone || r.phone || "";
+      let t = r.name + " is also interested in you!";
+      if (num) {
+        t += " You can contact " + (female ? "her" : "him") + " on " + num + ".";
+      }
+      t += " Make a move now, and good luck starting your romantic journey!";
+      card.appendChild(el("div", "profile", t));
+    } else {
+      card.appendChild(el("p", "muted", r.name + " is not available right now. Don't give up, there are more people to meet."));
+    }
+    box.appendChild(card);
+  });
+
+  /* RESP3: only the other person's replies */
+  if (!any) {
+    box.appendChild(el("p", "muted", "No responses yet. When someone replies to a request you sent, you will see it here."));
+  }
+}
+
+let respIdsNow = [];
+
+function seenList() {
+  try { return JSON.parse(localStorage.getItem("seenResp") || "[]"); } catch (e) { return []; }
+}
+
+function markSeen() {
+  try {
+    const all = seenList().concat(respIdsNow);
+    localStorage.setItem("seenResp", JSON.stringify(all.slice(-300)));
+  } catch (e) {}
+  $("tabResp").textContent = "Responses";
+}
+
+function updateBadge(outgoing) {
+  respIdsNow = (outgoing || [])
+    .filter((x) => x.status === "revealed" || x.status === "accepted" || x.status === "declined")
+    .map((x) => x.id);
+  if (!$("paneResp").hidden) { markSeen(); return; }
+  const seen = seenList();
+  const n = respIdsNow.filter((id) => seen.indexOf(id) === -1).length;
+  $("tabResp").textContent = "Responses" + (n ? " (" + n + ")" : "");
+}
+
 async function loadInbox() {
   const r = await api("api/me/interests", "GET");
   if (r.status === 401) { showView("login"); return; }
-  const pend = (r.data.incoming || []).filter((x) => x.status === "pending").length;
+  const pend = (r.data.incoming || []).filter((x) => x.status === "pending" || x.status === "notified").length;
   $("tabIn").textContent = "Received" + (pend ? " (" + pend + ")" : "");
   renderIncoming(r.data.incoming || []);
   renderOutgoing(r.data.outgoing || []);
+  renderResponses(r.data.incoming || [], r.data.outgoing || []);
+  updateBadge(r.data.outgoing || []);
   showView("inbox");
 }
 
@@ -214,13 +355,74 @@ $("cmd").addEventListener("keydown", (e) => { if (e.key === "Enter") { sendComma
 function showTab(which) {
   $("paneIn").hidden = which !== "in";
   $("paneOut").hidden = which !== "out";
+  $("paneResp").hidden = which !== "resp";
+  if (which === "resp") { markSeen(); }
   $("tabIn").className = "tab" + (which === "in" ? " active" : "");
   $("tabOut").className = "tab" + (which === "out" ? " active" : "");
+  $("tabResp").className = "tab" + (which === "resp" ? " active" : "");
 }
 $("tabIn").onclick = () => showTab("in");
 $("tabOut").onclick = () => showTab("out");
+$("tabResp").onclick = () => showTab("resp");
+$("moreBtn").onclick = () => { location.href = "simulator.html"; };
 
-loadInbox();
+const qs = new URLSearchParams(location.search);
+const setupPhone = qs.get("p") || "";
+const setupTok = qs.get("t") || "";
+
+async function startSetup() {
+  const r = await api("api/setup/check", "POST", { phone: setupPhone, token: setupTok });
+  if (!r.data.ok) { loginFor(setupPhone); return; }
+  $("loginView").hidden = true;
+  $("inboxView").hidden = true;
+  $("setupHello").textContent = "Welcome to PENZI, " + r.data.name + "! Let's set up your password.";
+  $("setupPhone").value = r.data.phone;
+  $("setupView").hidden = false;
+}
+
+$("setupShow").onchange = () => {
+  const t = $("setupShow").checked ? "text" : "password";
+  $("setupPw").type = t;
+  $("setupPw2").type = t;
+};
+
+$("setupBtn").onclick = async () => {
+  const a = $("setupPw").value;
+  const b = $("setupPw2").value;
+  if (a.length < 6) { say("setupNote", "Password must be at least 6 characters.", true); return; }
+  if (a !== b) { say("setupNote", "The two passwords do not match.", true); return; }
+  const r = await api("api/setup/set", "POST", { phone: setupPhone, token: setupTok, password: a });
+  if (r.status !== 200) { say("setupNote", r.data.error || "Could not set the password.", true); return; }
+  $("setupForm").hidden = true;
+  say("setupNote", "Your password has been set up successfully.", false);
+  $("loginNowBtn").hidden = false;
+};
+
+function goLogin() {
+  history.replaceState(null, "", location.pathname);
+  $("setupView").hidden = true;
+  $("phone").value = $("setupPhone").value;
+  $("pw").value = "";
+  showMode("pw");
+  showView("login");
+}
+$("loginNowBtn").onclick = goLogin;
+$("setupHave").onclick = (e) => { e.preventDefault(); goLogin(); };
+
+async function loginFor(phone) {
+  await api("api/logout", "POST", {});
+  history.replaceState(null, "", location.pathname);
+  $("setupView").hidden = true;
+  $("inboxView").hidden = true;
+  $("phone").value = phone;
+  $("pw").value = "";
+  showMode("pw");
+  showView("login");
+}
+
+if (setupPhone && setupTok) { startSetup(); }
+else if (setupPhone) { loginFor(setupPhone); }
+else { loadInbox(); }
 </script>
 </body>
 </html>

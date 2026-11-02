@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PENZI</title>
+<style>
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; min-height: 100%; font-family: system-ui, sans-serif; color: #fff; }
+  body {
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, rgba(53,26,37,.35) 0%, rgba(53,26,37,.92) 100%),
+      url("welcome.jpg") center / cover no-repeat,
+      linear-gradient(160deg, #8E1B4F, #351A25);
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .hero { padding: 40px 24px 16px; }
+  .hero h1 { margin: 0; font-size: 56px; letter-spacing: 6px; }
+  .hero p { margin: 6px 0 0; font-size: 20px; opacity: .95; }
+  .card { background: rgba(255,247,240,.97); color: #351A25; border-radius: 22px 22px 0 0;
+          padding: 22px 22px 28px; }
+  .card h2 { margin: 0 0 4px; font-size: 22px; color: #8E1B4F; }
+  .sub { margin: 0 0 14px; color: #6b4a58; }
+  label { display: block; font-weight: 600; margin: 10px 0 4px; }
+  input[type=tel], input[type=password], input[type=text] {
+    width: 100%; padding: 12px; font-size: 16px; border: 1px solid #c9a9b8;
+    border-radius: 10px; background: #fff; color: #351A25; }
+  .check { font-weight: 400; margin: 8px 0; }
+  .check input { width: auto; margin-right: 6px; }
+  button { width: 100%; padding: 14px; font-size: 17px; border: 0; border-radius: 12px; cursor: pointer; }
+  .primary { background: #8E1B4F; color: #fff; margin-top: 8px; }
+  .ghost { background: #fff; color: #8E1B4F; border: 2px solid #8E1B4F; margin-top: 10px; }
+  .note { margin-top: 10px; padding: 10px; border-radius: 10px; background: #fde8e8; color: #8a1c1c; }
+  .or { text-align: center; margin: 16px 0 4px; color: #6b4a58; }
+  a { color: #8E1B4F; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <h1>PENZI</h1>
+    <p>Welcome to PENZI. Find your person.</p>
+  </div>
+
+  <div class="card">
+    <h2>Welcome back</h2>
+    <p class="sub">Log in to continue your dating journey.</p>
+
+    <label for="phone">Phone number</label>
+    <input id="phone" type="tel" inputmode="numeric" placeholder="07XXXXXXXX" autocomplete="tel">
+
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <label class="check"><input type="checkbox" id="showpw"> Show password</label>
+
+    <button id="loginBtn" class="primary">Log in</button>
+    <div id="note" class="note" hidden></div>
+    <p style="margin:10px 0 0"><a href="inbox.html">Forgot password?</a></p>
+
+    <p class="or">New to PENZI?</p>
+    <button id="signupBtn" class="ghost">Sign up and find your person</button>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+$("showpw").onchange = () => { $("pw").type = $("showpw").checked ? "text" : "password"; };
+
+function say(text) { $("note").textContent = text; $("note").hidden = false; }
+
+async function login() {
+  const phone = $("phone").value.trim();
+  const pw = $("pw").value;
+  if (!phone || !pw) { say("Please enter your phone number and password."); return; }
+  try {
+    const res = await fetch("api/login/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ phone: phone, password: pw })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status !== 200) { say(data.error || "Login failed."); return; }
+    location.href = "inbox.html";
+  } catch (e) {
+    say("Could not reach the server. Check your connection.");
+  }
+}
+
+$("loginBtn").onclick = login;
+$("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") { login(); } });
+$("signupBtn").onclick = () => { location.href = "simulator.html"; };
+</script>
+</body>
+</html>

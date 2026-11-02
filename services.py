@@ -195,7 +195,8 @@ def lookup_profile(user, target_phone):
         gateway.send_sms(
             target_phone, messages.interest_notification(user, target)
         )
-    return messages.profile_reply(target)
+    return (messages.profile_reply(target) + " "
+            + messages.request_sent(target, personal_link(user["phone_number"])))
 
 
 def describe(user, number):
@@ -315,6 +316,7 @@ def my_interests(user):
             "status": status,
             "created_at": r["created_at"],
             "profile": None,
+            "phone": r["requester_phone"] if r["status"] == "revealed" else None,
         }
         if status == "accepted":
             requester = repository.get_user_by_phone(r["requester_phone"])
@@ -329,6 +331,8 @@ def my_interests(user):
     for r in rows:
         if r["status"] == "revealed":
             status = "accepted"
+        elif r["status"] == "declined":
+            status = "declined"
         else:
             status = "pending" if r["active"] else "expired"
         item = {
@@ -339,6 +343,7 @@ def my_interests(user):
             "status": status,
             "created_at": r["created_at"],
             "message": None,
+            "phone": r["target_phone"] if r["status"] == "revealed" else None,
         }
         if status == "accepted":
             target = repository.get_user_by_phone(r["target_phone"])
@@ -368,7 +373,10 @@ def respond_to_interest(user, interest_id, accept):
         return True, messages.INTEREST_DECLINED
     repository.set_interest_status(interest_id, "revealed")
     gateway.send_sms(
-        requester["phone_number"], messages.accepted_notice(user, requester)
+        requester["phone_number"],
+        messages.accepted_notice(
+            user, requester, personal_link(requester["phone_number"])
+        )
     )
     return True, (
         messages.profile_reply(requester)
@@ -392,3 +400,89 @@ def decline_interest(user):
         return messages.no_pending(REQUEST_EXPIRY_HOURS)
     ok, reply = respond_to_interest(user, pending["id"], False)
     return reply
+
+
+# ---------- PASSWORD LOGIN ----------
+
+from werkzeug.security import check_password_hash, generate_password_hash
+
+PASSWORD_MIN_LENGTH = 6
+PASSWORD_MAX_FAILS = 5
+PASSWORD_LOCK_MINUTES = 10
+
+
+def login_with_password(phone_number, password):
+    phone_number = _clean_phone(phone_number)
+    password = password or ""
+    user = user_by_phone(phone_number)
+    if user is None:
+        return None, messages.LOGIN_PASSWORD_INVALID
+    state = repository.get_password_state(phone_number)
+    if state is None or not state["password_hash"] or state["locked"]:
+        return None, messages.LOGIN_PASSWORD_INVALID
+    if not check_password_hash(state["password_hash"], password):
+        repository.record_failed_login(
+            phone_number, PASSWORD_MAX_FAILS, PASSWORD_LOCK_MINUTES
+        )
+        return None, messages.LOGIN_PASSWORD_INVALID
+    repository.clear_failed_logins(phone_number)
+    return user, None
+
+
+def set_password_with_code(phone_number, code, new_password):
+    new_password = new_password or ""
+    if len(new_password) < PASSWORD_MIN_LENGTH:
+        return None, messages.PASSWORD_TOO_SHORT
+    user, error = verify_login_code(phone_number, code)
+    if error:
+        return None, error
+    repository.set_password_hash(
+        user["phone_number"], generate_password_hash(new_password)
+    )
+    return user, None
+
+
+# ---------- PERSONAL SETUP LINK ----------
+
+def setup_token(phone_number):
+    import os
+    key = os.getenv("SECRET_KEY", "").encode()
+    msg = f"setup:{phone_number}".encode()
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()[:24]
+
+
+def personal_link(phone_number):
+    """Setup link for people with no password yet, plain login link otherwise."""
+    base = messages.login_link()
+    state = repository.get_password_state(phone_number)
+    if state is not None and not state["password_hash"]:
+        return f"{base}?p={phone_number}&t={setup_token(phone_number)}"
+    if state is not None:
+        return f"{base}?p={phone_number}"
+    return base
+
+
+def setup_user(phone_number, token):
+    phone_number = _clean_phone(phone_number)
+    user = repository.get_user_by_phone(phone_number)
+    if user is None or user["opted_out"]:
+        return None
+    state = repository.get_password_state(phone_number)
+    if state is None or state["password_hash"]:
+        return None
+    if not hmac.compare_digest(str(token or ""), setup_token(phone_number)):
+        return None
+    return user
+
+
+def set_first_password(phone_number, token, new_password):
+    new_password = new_password or ""
+    if len(new_password) < PASSWORD_MIN_LENGTH:
+        return None, f"Password must be at least {PASSWORD_MIN_LENGTH} characters."
+    user = setup_user(phone_number, token)
+    if user is None:
+        return None, "This setup link is not valid. If you already set a password, please log in."
+    repository.set_password_hash(
+        user["phone_number"], generate_password_hash(new_password)
+    )
+    return user, None
